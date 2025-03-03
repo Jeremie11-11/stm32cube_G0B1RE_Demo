@@ -2,7 +2,7 @@
  * i_timer.h
  *
  *  Created on: 1 mars 2025
- *      Author: Jeremie
+ *      Author: Jeremie Frueh
  */
 
 #ifndef INC_I_TIMER_H_
@@ -12,7 +12,5 @@
 
 
 void tim_init(void);
-
-void tim_set_blinking_period(uint32_t period_ms);
 
 #endif /* INC_I_TIMER_H_ */

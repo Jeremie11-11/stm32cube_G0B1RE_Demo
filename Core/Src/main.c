@@ -22,8 +22,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include "i_gpio.h"
 #include "i_timer.h"
+#include "i_dma.h"
 
 /* USER CODE END Includes */
 
@@ -47,6 +47,7 @@ TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart2;
 
+DMA_HandleTypeDef hdma_dma_generator0;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -54,6 +55,7 @@ UART_HandleTypeDef huart2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
@@ -94,12 +96,14 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
-  gpio_init();
+  //gpio_init();
   tim_init();
+  dma_init();
 
   /* USER CODE END 2 */
 
@@ -108,7 +112,8 @@ int main(void)
   while (1)
   {
 
-  	HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+		HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_STOPENTRY_WFI);
+  	//HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
 
     /* USER CODE END WHILE */
 
@@ -123,11 +128,25 @@ int main(void)
   */
 void SystemClock_Config(void)
 {
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage
   */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
+
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSIDiv = RCC_HSI_DIV1;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
   /** Initializes the CPU, AHB and APB buses clocks
   */
@@ -165,7 +184,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 15999;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 100;
+  htim2.Init.Period = 1000;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -188,7 +207,7 @@ static void MX_TIM2_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_TOGGLE;
-  sConfigOC.Pulse = 0;
+  sConfigOC.Pulse = 500;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
@@ -251,6 +270,46 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  * Configure DMA for memory to memory transfers
+  *   hdma_dma_generator0
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* Local variables */
+  HAL_DMA_MuxRequestGeneratorConfigTypeDef pRequestGeneratorConfig = {0};
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* Configure DMA request hdma_dma_generator0 on DMA1_Channel1 */
+  hdma_dma_generator0.Instance = DMA1_Channel1;
+  hdma_dma_generator0.Init.Request = DMA_REQUEST_GENERATOR0;
+  hdma_dma_generator0.Init.Direction = DMA_MEMORY_TO_PERIPH;
+  hdma_dma_generator0.Init.PeriphInc = DMA_PINC_DISABLE;
+  hdma_dma_generator0.Init.MemInc = DMA_MINC_ENABLE;
+  hdma_dma_generator0.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+  hdma_dma_generator0.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
+  hdma_dma_generator0.Init.Mode = DMA_CIRCULAR;
+  hdma_dma_generator0.Init.Priority = DMA_PRIORITY_LOW;
+  if (HAL_DMA_Init(&hdma_dma_generator0) != HAL_OK)
+  {
+    Error_Handler( );
+  }
+
+  /* Configure the DMAMUX request generator for the selected DMA channel */
+  pRequestGeneratorConfig.SignalID = HAL_DMAMUX1_REQ_GEN_EXTI13;
+  pRequestGeneratorConfig.Polarity = HAL_DMAMUX_REQ_GEN_RISING;
+  pRequestGeneratorConfig.RequestNumber = 1;
+  if (HAL_DMAEx_ConfigMuxRequestGenerator(&hdma_dma_generator0, &pRequestGeneratorConfig) != HAL_OK)
+  {
+    Error_Handler( );
+  }
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -271,10 +330,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI4_15_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */

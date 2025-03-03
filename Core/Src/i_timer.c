@@ -16,9 +16,3 @@ void tim_init(void)
 	HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_1);
 }
 
-void tim_set_blinking_period(uint32_t period_ms)
-{
-	TIM2->ARR = period_ms;
-	TIM2->CCR1 = period_ms/2;
-}
-
